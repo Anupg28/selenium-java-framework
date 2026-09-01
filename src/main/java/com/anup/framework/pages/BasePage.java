@@ -36,16 +36,43 @@ public abstract class BasePage {
     }
 
     /**
+     * automationexercise.com occasionally injects a full-page "Powered by Google" survey
+     * overlay with a document-level click interceptor that swallows clicks on background
+     * content entirely - a plain JS-dispatched click doesn't bypass it like it does an ad
+     * iframe simply overlapping an element. Best-effort dismiss before every click: click any
+     * visible leaf element whose text is exactly "Close", then strip any residual ultra-high
+     * z-index overlay as a fallback. No-op (and cheap) on the vast majority of clicks where no
+     * such overlay is present.
+     */
+    private void dismissSurveyOverlayIfPresent() {
+        try {
+            ((JavascriptExecutor) driver).executeScript(
+                    "var closers = Array.from(document.querySelectorAll('body *')).filter(function(el) {"
+                            + "  return el.children.length === 0 && (el.textContent || '').trim() === 'Close' && el.offsetParent !== null;"
+                            + "});"
+                            + "closers.forEach(function(el) { try { el.click(); } catch (e) {} });"
+                            + "document.querySelectorAll('div, iframe').forEach(function(el) {"
+                            + "  var z = parseInt(window.getComputedStyle(el).zIndex, 10);"
+                            + "  if (!isNaN(z) && z >= 999999) { try { el.remove(); } catch (e) {} }"
+                            + "});"
+            );
+        } catch (Exception ignored) {
+        }
+    }
+
+    /**
      * automationexercise.com serves real, dynamically-positioned ad iframes that can
      * momentarily overlap a target element and intercept a native click. Falling back to a
      * JS-dispatched click keeps the suite reliable without weakening what's actually verified
      * (element still has to exist, be visible, and be "clickable" per the explicit wait).
      */
     protected void click(WebElement element) {
+        dismissSurveyOverlayIfPresent();
         WebElement target = waitForClickable(element);
         try {
             target.click();
         } catch (ElementClickInterceptedException e) {
+            dismissSurveyOverlayIfPresent();
             ((JavascriptExecutor) driver).executeScript("arguments[0].click();", target);
         }
     }
@@ -75,7 +102,14 @@ public abstract class BasePage {
      */
     protected boolean waitUntilDisplayed(WebElement element) {
         try {
-            return wait.until(ExpectedConditions.visibilityOf(element)).isDisplayed();
+            return wait.until(driver -> {
+                dismissSurveyOverlayIfPresent();
+                try {
+                    return element.isDisplayed();
+                } catch (Exception e) {
+                    return false;
+                }
+            });
         } catch (Exception e) {
             return false;
         }
