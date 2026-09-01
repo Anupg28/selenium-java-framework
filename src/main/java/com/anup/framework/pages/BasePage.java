@@ -2,6 +2,8 @@ package com.anup.framework.pages;
 
 import com.anup.framework.utils.ConfigReader;
 import org.openqa.selenium.By;
+import org.openqa.selenium.ElementClickInterceptedException;
+import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.PageFactory;
@@ -33,8 +35,19 @@ public abstract class BasePage {
         wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
     }
 
+    /**
+     * automationexercise.com serves real, dynamically-positioned ad iframes that can
+     * momentarily overlap a target element and intercept a native click. Falling back to a
+     * JS-dispatched click keeps the suite reliable without weakening what's actually verified
+     * (element still has to exist, be visible, and be "clickable" per the explicit wait).
+     */
     protected void click(WebElement element) {
-        waitForClickable(element).click();
+        WebElement target = waitForClickable(element);
+        try {
+            target.click();
+        } catch (ElementClickInterceptedException e) {
+            ((JavascriptExecutor) driver).executeScript("arguments[0].click();", target);
+        }
     }
 
     protected void type(WebElement element, String text) {
