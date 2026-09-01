@@ -50,7 +50,7 @@ public class PaymentPage extends BasePage {
     }
 
     public boolean isOrderPlaced() {
-        return isDisplayed(orderPlacedHeading);
+        return waitUntilDisplayed(orderPlacedHeading);
     }
 
     public String getOrderPlacedHeadingText() {

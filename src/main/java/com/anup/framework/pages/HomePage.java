@@ -38,6 +38,6 @@ public class HomePage extends BasePage {
     }
 
     public boolean isUserLoggedIn() {
-        return isDisplayed(logoutLink);
+        return waitUntilDisplayed(logoutLink);
     }
 }

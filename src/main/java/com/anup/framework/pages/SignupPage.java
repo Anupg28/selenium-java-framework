@@ -84,7 +84,7 @@ public class SignupPage extends BasePage {
     }
 
     public boolean isAccountCreated() {
-        return isDisplayed(accountCreatedHeading);
+        return waitUntilDisplayed(accountCreatedHeading);
     }
 
     public HomePage clickContinue() {

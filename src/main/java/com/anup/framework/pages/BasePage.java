@@ -68,6 +68,19 @@ public abstract class BasePage {
         }
     }
 
+    /**
+     * Use for state that only appears after a navigation/redirect (e.g. a logged-in header).
+     * An instant isDisplayed() check races the page load; this polls up to the explicit wait
+     * timeout and only returns false once it's actually given up, not on the first frame checked.
+     */
+    protected boolean waitUntilDisplayed(WebElement element) {
+        try {
+            return wait.until(ExpectedConditions.visibilityOf(element)).isDisplayed();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public void open(String url) {
         driver.get(url);
     }
