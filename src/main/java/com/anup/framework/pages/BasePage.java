@@ -37,23 +37,32 @@ public abstract class BasePage {
 
     /**
      * automationexercise.com occasionally injects a full-page "Powered by Google" survey
-     * overlay with a document-level click interceptor that swallows clicks on background
-     * content entirely - a plain JS-dispatched click doesn't bypass it like it does an ad
-     * iframe simply overlapping an element. Best-effort dismiss before every click: click any
-     * visible leaf element whose text is exactly "Close", then strip any residual ultra-high
-     * z-index overlay as a fallback. No-op (and cheap) on the vast majority of clicks where no
-     * such overlay is present.
+     * served inside an iframe, with a document-level click interceptor that swallows clicks on
+     * background content entirely - a plain JS-dispatched click doesn't bypass it like it does
+     * an ordinary ad iframe simply overlapping an element. Its "Close"/"Next"/"Done" controls
+     * live *inside* that iframe's document, which querySelectorAll from the parent page can
+     * never see, so the fix is removing the overlay's wrapper directly from the parent DOM -
+     * that part is always reachable even cross-origin.
+     * <p>
+     * The page also serves ordinary in-flow Google ad banners on every load, which must be left
+     * alone. The distinguishing signal is CSS: a true full-page overlay is always
+     * {@code position: fixed} so it stays put regardless of scroll; an in-flow banner is not.
+     * Only remove an ancestor when that specific signal is found nearby - never a blind
+     * ancestor-walk-and-remove, which risks tearing out shared layout containers.
      */
     private void dismissSurveyOverlayIfPresent() {
         try {
             ((JavascriptExecutor) driver).executeScript(
-                    "var closers = Array.from(document.querySelectorAll('body *')).filter(function(el) {"
-                            + "  return el.children.length === 0 && (el.textContent || '').trim() === 'Close' && el.offsetParent !== null;"
-                            + "});"
-                            + "closers.forEach(function(el) { try { el.click(); } catch (e) {} });"
-                            + "document.querySelectorAll('div, iframe').forEach(function(el) {"
-                            + "  var z = parseInt(window.getComputedStyle(el).zIndex, 10);"
-                            + "  if (!isNaN(z) && z >= 999999) { try { el.remove(); } catch (e) {} }"
+                    "document.querySelectorAll('iframe').forEach(function(f) {"
+                            + "  var src = (f.getAttribute('src') || '').toLowerCase();"
+                            + "  if (src.indexOf('google') === -1) { return; }"
+                            + "  var node = f;"
+                            + "  var overlayRoot = null;"
+                            + "  for (var i = 0; i < 6 && node && node !== document.body; i++) {"
+                            + "    if (window.getComputedStyle(node).position === 'fixed') { overlayRoot = node; break; }"
+                            + "    node = node.parentElement;"
+                            + "  }"
+                            + "  if (overlayRoot) { try { overlayRoot.remove(); } catch (e) {} }"
                             + "});"
             );
         } catch (Exception ignored) {
